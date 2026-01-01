@@ -1,0 +1,8 @@
+node_modules/
+build/
+.env
+*.png
+test_request.json
+test_call.json
+.DS_Store
+package-lock.json
