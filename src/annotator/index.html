@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Nano Banana - Image Annotator</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      min-height: 100vh;
+      color: #fff;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 20px;
+    }
+
+    h1 {
+      margin-bottom: 10px;
+      font-size: 1.8rem;
+      background: linear-gradient(90deg, #ffd700, #ff8c00);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .subtitle {
+      color: #888;
+      margin-bottom: 20px;
+      font-size: 0.9rem;
+    }
+
+    .progress-bar {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 20px;
+    }
+
+    .progress-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: #333;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+
+    .progress-dot.active {
+      background: #ffd700;
+      transform: scale(1.2);
+    }
+
+    .progress-dot.completed {
+      background: #4CAF50;
+    }
+
+    .canvas-container {
+      position: relative;
+      border: 3px solid #333;
+      border-radius: 12px;
+      overflow: hidden;
+      background: #000;
+      max-width: 90vw;
+      max-height: 60vh;
+    }
+
+    #imageCanvas {
+      display: block;
+      max-width: 100%;
+      max-height: 60vh;
+    }
+
+    #drawCanvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      cursor: crosshair;
+    }
+
+    .toolbar {
+      display: flex;
+      gap: 10px;
+      margin: 20px 0;
+      flex-wrap: wrap;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .color-picker {
+      display: flex;
+      gap: 6px;
+    }
+
+    .color-btn {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      border: 3px solid transparent;
+      cursor: pointer;
+      transition: transform 0.2s, border-color 0.2s;
+    }
+
+    .color-btn:hover {
+      transform: scale(1.1);
+    }
+
+    .color-btn.active {
+      border-color: #fff;
+      transform: scale(1.15);
+    }
+
+    .color-btn.red { background: #ff4444; }
+    .color-btn.yellow { background: #ffeb3b; }
+    .color-btn.green { background: #4CAF50; }
+    .color-btn.blue { background: #2196F3; }
+    .color-btn.white { background: #ffffff; }
+
+    .brush-size {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: #aaa;
+    }
+
+    .brush-size input {
+      width: 80px;
+    }
+
+    .btn {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 0.9rem;
+      font-weight: 600;
+      transition: all 0.2s;
+    }
+
+    .btn-clear {
+      background: #444;
+      color: #fff;
+    }
+
+    .btn-clear:hover {
+      background: #555;
+    }
+
+    .prompt-section {
+      width: 100%;
+      max-width: 800px;
+      margin: 20px 0;
+    }
+
+    .prompt-section label {
+      display: block;
+      margin-bottom: 8px;
+      color: #aaa;
+      font-size: 0.9rem;
+    }
+
+    .prompt-section textarea {
+      width: 100%;
+      height: 100px;
+      padding: 12px;
+      border-radius: 8px;
+      border: 2px solid #333;
+      background: #1a1a2e;
+      color: #fff;
+      font-family: inherit;
+      font-size: 1rem;
+      resize: vertical;
+    }
+
+    .prompt-section textarea:focus {
+      outline: none;
+      border-color: #ffd700;
+    }
+
+    .navigation {
+      display: flex;
+      gap: 15px;
+      margin-top: 20px;
+    }
+
+    .btn-nav {
+      padding: 12px 30px;
+      font-size: 1rem;
+    }
+
+    .btn-back {
+      background: #555;
+      color: #fff;
+    }
+
+    .btn-back:hover {
+      background: #666;
+    }
+
+    .btn-back:disabled {
+      background: #333;
+      color: #666;
+      cursor: not-allowed;
+    }
+
+    .btn-next {
+      background: linear-gradient(90deg, #ffd700, #ff8c00);
+      color: #000;
+    }
+
+    .btn-next:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 15px rgba(255, 215, 0, 0.3);
+    }
+
+    .btn-finish {
+      background: linear-gradient(90deg, #4CAF50, #45a049);
+      color: #fff;
+    }
+
+    .btn-finish:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 15px rgba(76, 175, 80, 0.3);
+    }
+
+    .image-name {
+      color: #ffd700;
+      font-weight: 600;
+      margin-bottom: 15px;
+      font-size: 1.1rem;
+    }
+
+    .loading {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 300px;
+      color: #888;
+    }
+
+    .spinner {
+      width: 40px;
+      height: 40px;
+      border: 4px solid #333;
+      border-top-color: #ffd700;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin-bottom: 15px;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+  <h1>🍌 Nano Banana Annotator</h1>
+  <p class="subtitle">Draw on images to highlight areas of interest</p>
+
+  <div class="progress-bar" id="progressBar"></div>
+
+  <p class="image-name" id="imageName">Loading...</p>
+
+  <div class="canvas-container" id="canvasContainer">
+    <canvas id="imageCanvas"></canvas>
+    <canvas id="drawCanvas"></canvas>
+  </div>
+
+  <div class="toolbar">
+    <div class="color-picker">
+      <button class="color-btn red active" data-color="#ff4444" title="Red"></button>
+      <button class="color-btn yellow" data-color="#ffeb3b" title="Yellow"></button>
+      <button class="color-btn green" data-color="#4CAF50" title="Green"></button>
+      <button class="color-btn blue" data-color="#2196F3" title="Blue"></button>
+      <button class="color-btn white" data-color="#ffffff" title="White"></button>
+    </div>
+    <div class="brush-size">
+      <label>Brush:</label>
+      <input type="range" id="brushSize" min="2" max="20" value="5">
+      <span id="brushSizeValue">5</span>
+    </div>
+    <button class="btn btn-clear" id="clearBtn">Clear Drawing</button>
+  </div>
+
+  <div class="prompt-section">
+    <label for="promptInput">Describe what you want to do with this image:</label>
+    <textarea id="promptInput" placeholder="Describe your edits here..."></textarea>
+  </div>
+
+  <div class="navigation">
+    <button class="btn btn-nav btn-back" id="backBtn" disabled>← Back</button>
+    <button class="btn btn-nav btn-next" id="nextBtn">Next →</button>
+  </div>
+
+  <script>
+    // State
+    let images = [];
+    let currentIndex = 0;
+    let annotations = []; // { imageData: base64, prompt: string }
+    let currentColor = '#ff4444';
+    let brushSize = 5;
+    let isDrawing = false;
+    let lastX = 0;
+    let lastY = 0;
+
+    // Canvas elements
+    const imageCanvas = document.getElementById('imageCanvas');
+    const drawCanvas = document.getElementById('drawCanvas');
+    const imageCtx = imageCanvas.getContext('2d');
+    const drawCtx = drawCanvas.getContext('2d');
+
+    // UI elements
+    const progressBar = document.getElementById('progressBar');
+    const imageName = document.getElementById('imageName');
+    const promptInput = document.getElementById('promptInput');
+    const backBtn = document.getElementById('backBtn');
+    const nextBtn = document.getElementById('nextBtn');
+    const clearBtn = document.getElementById('clearBtn');
+    const brushSizeInput = document.getElementById('brushSize');
+    const brushSizeValue = document.getElementById('brushSizeValue');
+
+    // Initialize
+    async function init() {
+      try {
+        const response = await fetch('/api/images');
+        const data = await response.json();
+        images = data.images;
+        
+        // Initialize annotations array
+        annotations = images.map((img, i) => ({
+          drawingData: null,
+          prompt: `Notes about ${img.name}: `
+        }));
+        
+        renderProgressBar();
+        await loadImage(0);
+      } catch (err) {
+        console.error('Failed to load images:', err);
+        imageName.textContent = 'Error loading images';
+      }
+    }
+
+    function renderProgressBar() {
+      progressBar.innerHTML = '';
+      images.forEach((_, i) => {
+        const dot = document.createElement('div');
+        dot.className = 'progress-dot' + (i === currentIndex ? ' active' : '') + (annotations[i]?.drawingData ? ' completed' : '');
+        dot.addEventListener('click', () => goToImage(i));
+        progressBar.appendChild(dot);
+      });
+    }
+
+    async function loadImage(index) {
+      currentIndex = index;
+      const img = images[index];
+      imageName.textContent = `${index + 1}/${images.length}: ${img.name}`;
+      
+      // Load image
+      const image = new Image();
+      image.onload = () => {
+        // Set canvas sizes
+        imageCanvas.width = image.width;
+        imageCanvas.height = image.height;
+        drawCanvas.width = image.width;
+        drawCanvas.height = image.height;
+        
+        // Draw image
+        imageCtx.drawImage(image, 0, 0);
+        
+        // Restore drawing if exists
+        if (annotations[index].drawingData) {
+          const drawImg = new Image();
+          drawImg.onload = () => {
+            drawCtx.drawImage(drawImg, 0, 0);
+          };
+          drawImg.src = annotations[index].drawingData;
+        } else {
+          drawCtx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
+        }
+      };
+      image.src = img.dataUrl;
+      
+      // Restore prompt
+      promptInput.value = annotations[index].prompt;
+      
+      // Update buttons
+      backBtn.disabled = index === 0;
+      if (index === images.length - 1) {
+        nextBtn.textContent = 'Finish ✓';
+        nextBtn.className = 'btn btn-nav btn-finish';
+      } else {
+        nextBtn.textContent = 'Next →';
+        nextBtn.className = 'btn btn-nav btn-next';
+      }
+      
+      renderProgressBar();
+    }
+
+    function saveCurrentAnnotation() {
+      annotations[currentIndex].drawingData = drawCanvas.toDataURL('image/png');
+      annotations[currentIndex].prompt = promptInput.value;
+    }
+
+    async function goToImage(index) {
+      saveCurrentAnnotation();
+      await loadImage(index);
+    }
+
+    // Drawing functionality
+    drawCanvas.addEventListener('mousedown', startDrawing);
+    drawCanvas.addEventListener('mousemove', draw);
+    drawCanvas.addEventListener('mouseup', stopDrawing);
+    drawCanvas.addEventListener('mouseout', stopDrawing);
+
+    // Touch support
+    drawCanvas.addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      const touch = e.touches[0];
+      const rect = drawCanvas.getBoundingClientRect();
+      const scaleX = drawCanvas.width / rect.width;
+      const scaleY = drawCanvas.height / rect.height;
+      startDrawing({
+        offsetX: (touch.clientX - rect.left) * scaleX,
+        offsetY: (touch.clientY - rect.top) * scaleY
+      });
+    });
+
+    drawCanvas.addEventListener('touchmove', (e) => {
+      e.preventDefault();
+      const touch = e.touches[0];
+      const rect = drawCanvas.getBoundingClientRect();
+      const scaleX = drawCanvas.width / rect.width;
+      const scaleY = drawCanvas.height / rect.height;
+      draw({
+        offsetX: (touch.clientX - rect.left) * scaleX,
+        offsetY: (touch.clientY - rect.top) * scaleY
+      });
+    });
+
+    drawCanvas.addEventListener('touchend', stopDrawing);
+
+    function startDrawing(e) {
+      isDrawing = true;
+      const rect = drawCanvas.getBoundingClientRect();
+      const scaleX = drawCanvas.width / rect.width;
+      const scaleY = drawCanvas.height / rect.height;
+      lastX = (e.offsetX !== undefined) ? e.offsetX : e.offsetX;
+      lastY = (e.offsetY !== undefined) ? e.offsetY : e.offsetY;
+      
+      // Scale for CSS-scaled canvas
+      if (e.offsetX !== undefined) {
+        const rect = drawCanvas.getBoundingClientRect();
+        lastX = e.offsetX * (drawCanvas.width / rect.width);
+        lastY = e.offsetY * (drawCanvas.height / rect.height);
+      }
+    }
+
+    function draw(e) {
+      if (!isDrawing) return;
+      
+      const rect = drawCanvas.getBoundingClientRect();
+      const scaleX = drawCanvas.width / rect.width;
+      const scaleY = drawCanvas.height / rect.height;
+      
+      let x, y;
+      if (e.offsetX !== undefined) {
+        x = e.offsetX * scaleX;
+        y = e.offsetY * scaleY;
+      } else {
+        x = e.offsetX;
+        y = e.offsetY;
+      }
+      
+      drawCtx.beginPath();
+      drawCtx.moveTo(lastX, lastY);
+      drawCtx.lineTo(x, y);
+      drawCtx.strokeStyle = currentColor;
+      drawCtx.lineWidth = brushSize;
+      drawCtx.lineCap = 'round';
+      drawCtx.lineJoin = 'round';
+      drawCtx.stroke();
+      
+      lastX = x;
+      lastY = y;
+    }
+
+    function stopDrawing() {
+      isDrawing = false;
+    }
+
+    // Color picker
+    document.querySelectorAll('.color-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.color-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        currentColor = btn.dataset.color;
+      });
+    });
+
+    // Brush size
+    brushSizeInput.addEventListener('input', () => {
+      brushSize = parseInt(brushSizeInput.value);
+      brushSizeValue.textContent = brushSize;
+    });
+
+    // Clear drawing
+    clearBtn.addEventListener('click', () => {
+      drawCtx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
+    });
+
+    // Navigation
+    backBtn.addEventListener('click', () => {
+      if (currentIndex > 0) {
+        goToImage(currentIndex - 1);
+      }
+    });
+
+    nextBtn.addEventListener('click', async () => {
+      saveCurrentAnnotation();
+      
+      if (currentIndex < images.length - 1) {
+        await loadImage(currentIndex + 1);
+      } else {
+        // Finish - submit all annotations
+        await submitAnnotations();
+      }
+    });
+
+    async function submitAnnotations() {
+      nextBtn.disabled = true;
+      nextBtn.textContent = 'Saving...';
+      
+      try {
+        // Merge drawings with images
+        const results = [];
+        for (let i = 0; i < images.length; i++) {
+          const mergedCanvas = document.createElement('canvas');
+          mergedCanvas.width = imageCanvas.width;
+          mergedCanvas.height = imageCanvas.height;
+          const ctx = mergedCanvas.getContext('2d');
+          
+          // Draw original image
+          const img = new Image();
+          await new Promise((resolve) => {
+            img.onload = resolve;
+            img.src = images[i].dataUrl;
+          });
+          ctx.drawImage(img, 0, 0);
+          
+          // Draw annotations if they exist
+          if (annotations[i].drawingData) {
+            const drawImg = new Image();
+            await new Promise((resolve) => {
+              drawImg.onload = resolve;
+              drawImg.src = annotations[i].drawingData;
+            });
+            ctx.drawImage(drawImg, 0, 0);
+          }
+          
+          results.push({
+            name: images[i].name,
+            originalPath: images[i].path,
+            annotatedDataUrl: mergedCanvas.toDataURL('image/png'),
+            prompt: annotations[i].prompt
+          });
+        }
+        
+        // Send results to server
+        const response = await fetch('/api/submit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ annotations: results })
+        });
+        
+        if (response.ok) {
+          document.body.innerHTML = `
+            <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; text-align: center;">
+              <h1 style="color: #4CAF50; font-size: 3rem;">✓</h1>
+              <h2 style="color: #fff; margin-bottom: 10px;">Annotations Saved!</h2>
+              <p style="color: #888;">You can close this window now.</p>
+            </div>
+          `;
+        } else {
+          throw new Error('Failed to save');
+        }
+      } catch (err) {
+        console.error('Submit failed:', err);
+        nextBtn.disabled = false;
+        nextBtn.textContent = 'Finish ✓';
+        alert('Failed to save annotations. Please try again.');
+      }
+    }
+
+    // Start
+    init();
+  </script>
+</body>
+</html>
