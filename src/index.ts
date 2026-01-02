@@ -113,15 +113,22 @@ class NanoBananaServer {
         return this.handleImageTask(request.params.arguments as any);
       } else if (request.params.name === 'batch_edit_or_create_images') {
         const { tasks } = request.params.arguments as { tasks: any[] };
-        const results = [];
-        for (const task of tasks) {
+
+        const results = await Promise.all(tasks.map(async (task) => {
           try {
             const result: any = await this.handleImageTask(task);
-            results.push({ task: task.prompt, status: 'success', imageSaved: !!task.outputPath, output: result.content?.[0]?.text });
+            return {
+              task: task.prompt,
+              status: 'success',
+              imageSaved: !!task.outputPath,
+              output: result.content?.[0]?.text,
+              usage: result.usage
+            };
           } catch (err: any) {
-            results.push({ task: task.prompt, status: 'failed', error: err.message });
+            return { task: task.prompt, status: 'failed', error: err.message };
           }
-        }
+        }));
+
         return {
           content: [{ type: 'text', text: JSON.stringify(results, null, 2) }]
         };
@@ -221,6 +228,14 @@ class NanoBananaServer {
         };
       }
 
+      // Add cost summary to the output
+      if (response.data.usage) {
+        mcpContent.push({
+          type: 'text',
+          text: `[Usage Summary] Prompt Tokens: ${response.data.usage.prompt_tokens}, Completion Tokens: ${response.data.usage.completion_tokens}, Total Tokens: ${response.data.usage.total_tokens}`
+        });
+      }
+
       // If outputPath is provided, save the FIRST image found to that path
       if (outputPath) {
         const firstImage = mcpContent.find(c => c.type === 'image');
@@ -238,7 +253,7 @@ class NanoBananaServer {
         }
       }
 
-      return { content: mcpContent };
+      return { content: mcpContent, usage: response.data.usage };
     } catch (error: any) {
       if (axios.isAxiosError(error)) {
         console.error(`[Nano Banana Pro] Axios Error: ${JSON.stringify(error.response?.data || error.message, null, 2)}`);
