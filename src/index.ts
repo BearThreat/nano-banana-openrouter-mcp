@@ -25,9 +25,9 @@ class NanoBananaServer {
   constructor() {
     this.server = new Server(
       {
-        name: 'nano-banana-pro-openrouter',
+        name: 'nano-banana-pro',
         version: '0.1.0',
-        description: 'The premier image generation and editing suite. Powering creative excellence with "nano banana Pro".'
+        description: 'The premier image generation and editing suite. This is the official Nano Banana Pro implementation, optimized for maximum multimodal creative fidelity.'
       },
       {
         capabilities: {

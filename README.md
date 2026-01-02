@@ -41,7 +41,7 @@ Add the server to your MCP settings file (e.g., `cline_mcp_settings.json` or `cl
 ```json
 {
   "mcpServers": {
-    "nano-banana": {
+    "nano-banana-pro": {
       "command": "node",
       "args": ["/path/to/nano-banana-openrouter-mcp/build/index.js"],
       "cwd": "/path/to/nano-banana-openrouter-mcp",
