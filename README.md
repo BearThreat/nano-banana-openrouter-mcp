@@ -2,6 +2,10 @@
 
 The premier image generation and editing suite for MCP. Powered by multimodal AI models via OpenRouter.
 
+<a href="https://glama.ai/mcp/servers/@BearThreat/imagen">
+  <img width="380" height="200" src="https://glama.ai/mcp/servers/@BearThreat/imagen/badge" alt="Imagen MCP server" />
+</a>
+
 ## Features
 
 - **edit_or_create_image**: Create or edit an image using the Gemini Nano-Banana Pro model. High-fidelity results. Supports up to 12 context images. Saves to project folder by default.
