@@ -1,14 +1,15 @@
-# Nano Banana Pro - OpenRouter MCP Server
+# Nano Banana 2 - OpenRouter MCP Server
 
-The premier image generation and editing suite for MCP. Powered by multimodal AI models via OpenRouter.
+Fast, cost-efficient image generation and editing for MCP. Powered by Nano Banana 2 via OpenRouter.
 
 ## Features
 
-- **edit_or_create_image**: Create or edit an image using the Gemini Nano-Banana Pro model. High-fidelity results. Supports up to 12 context images. Saves to project folder by default.
-- **batch_edit_or_create_images**: Perform multiple image creation or editing tasks in a single batch. Optimized for "nano banana Pro". Perfect for complex creative workflows.
+- **edit_or_create_image**: Create or edit an image using the Nano Banana 2 model on OpenRouter. Fast, cost-efficient results. Supports up to 12 context images. Saves to project folder by default.
+- **batch_edit_or_create_images**: Perform multiple image creation or editing tasks in a single batch. Optimized for Nano Banana 2. Perfect for fast, cost-efficient creative workflows.
 - **annotate_images**: Open a visual annotation UI to draw on images and add notes before editing. Opens a browser window where you can draw freehand markings on each image and write prompts. Useful for pointing out specific areas to edit.
 - **Multimodal Support**: Provide up to 12 local images as context for editing or inspiration.
 - **Flexible Output**: Specify a local path to save each generated image.
+- **Model Override**: Still supports `NANO_BANANA_MODEL_ID` if you want to point the server at a different OpenRouter image model.
 
 ## Setup
 
@@ -48,7 +49,7 @@ Add the server to your MCP settings file (e.g., `cline_mcp_settings.json` or `cl
       "cwd": "/path/to/nano-banana-openrouter-mcp",
       "env": {
         "OPENROUTER_API_KEY": "your-openrouter-api-key",
-        "NANO_BANANA_MODEL_ID": "google/gemini-3-pro-image-preview"
+        "NANO_BANANA_MODEL_ID": "google/gemini-3.1-flash-image-preview"
       },
       "disabled": false,
       "autoApprove": [
@@ -64,6 +65,12 @@ Add the server to your MCP settings file (e.g., `cline_mcp_settings.json` or `cl
 ## Usage
 
 Once configured, your AI client will have access to the image generation tools.
+
+By default, this server now targets **Nano Banana 2** on OpenRouter:
+
+`google/gemini-3.1-flash-image-preview`
+
+This was chosen for better speed/cost tradeoffs. You can still override it with `NANO_BANANA_MODEL_ID` if needed.
 
 ### Single Image Generation
 

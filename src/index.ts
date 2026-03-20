@@ -15,7 +15,7 @@ import { fileURLToPath } from 'url';
 import { createServer } from 'http';
 
 const API_KEY = process.env.OPENROUTER_API_KEY;
-const MODEL_ID = process.env.NANO_BANANA_MODEL_ID || 'google/gemini-3-pro-image-preview';
+const MODEL_ID = process.env.NANO_BANANA_MODEL_ID || 'google/gemini-3.1-flash-image-preview';
 
 if (!API_KEY) {
   throw new Error('OPENROUTER_API_KEY environment variable is required');
@@ -43,7 +43,7 @@ class NanoBananaServer {
       {
         name: 'nano-banana-pro',
         version: '0.1.0',
-        description: 'The premier image generation and editing suite. This is the official Nano Banana Pro implementation, optimized for maximum multimodal creative fidelity.'
+        description: 'Fast, cost-efficient image generation and editing via Nano Banana 2 on OpenRouter, with support for multimodal prompting and annotation workflows.'
       },
       {
         capabilities: {
@@ -57,7 +57,7 @@ class NanoBananaServer {
       headers: {
         'Authorization': `Bearer ${API_KEY}`,
         'HTTP-Referer': 'https://github.com/modelcontextprotocol/nano-banana',
-        'X-Title': 'Nano Banana Pro MCP',
+        'X-Title': 'Nano Banana MCP',
         'Content-Type': 'application/json',
       },
     });
@@ -76,7 +76,7 @@ class NanoBananaServer {
       tools: [
         {
           name: 'edit_or_create_image',
-          description: 'Create or edit an image using the Gemini Nano-Banana Pro model. High-fidelity results. Supports up to 12 context images. Saves to project folder by default.',
+          description: 'Create or edit an image using the Nano Banana 2 model on OpenRouter. Fast, cost-efficient results. Supports up to 12 context images. Saves to project folder by default.',
           inputSchema: {
             type: 'object',
             properties: {
@@ -100,7 +100,7 @@ class NanoBananaServer {
         },
         {
           name: 'batch_edit_or_create_images',
-          description: 'Perform multiple image creation or editing tasks in a single batch. Optimized for "nano banana Pro". Perfect for complex creative workflows.',
+          description: 'Perform multiple image creation or editing tasks in a single batch. Optimized for Nano Banana 2. Perfect for fast, cost-efficient creative workflows.',
           inputSchema: {
             type: 'object',
             properties: {
@@ -236,16 +236,17 @@ class NanoBananaServer {
 
       messages.push({ role: 'user', content });
 
-      console.error(`[Nano Banana Pro] Sending request to OpenRouter with model: ${MODEL_ID}`);
-      console.error(`[Nano Banana Pro] Full request payload: ${JSON.stringify({ model: MODEL_ID, messages: messages.map(m => ({ ...m, content: m.content.map((c: any) => c.type === 'image_url' ? { type: 'image_url', image_url: { url: 'DATA_REDACTED' } } : c) })) })}`);
+      console.error(`[Nano Banana MCP] Sending request to OpenRouter with model: ${MODEL_ID}`);
+      console.error(`[Nano Banana MCP] Full request payload: ${JSON.stringify({ model: MODEL_ID, modalities: ['image', 'text'], messages: messages.map(m => ({ ...m, content: m.content.map((c: any) => c.type === 'image_url' ? { type: 'image_url', image_url: { url: 'DATA_REDACTED' } } : c) })) })}`);
 
       const response = await this.axiosInstance.post('/chat/completions', {
         model: MODEL_ID,
+        modalities: ['image', 'text'],
         messages,
       });
 
-      console.error(`[Nano Banana Pro] Received response from OpenRouter: ${response.status}`);
-      console.error(`[Nano Banana Pro] Raw response data (redacted): ${JSON.stringify(response.data, (key, value) => {
+      console.error(`[Nano Banana MCP] Received response from OpenRouter: ${response.status}`);
+      console.error(`[Nano Banana MCP] Raw response data (redacted): ${JSON.stringify(response.data, (key, value) => {
         if (key === 'data' && typeof value === 'string' && value.length > 100) return 'DATA_REDACTED';
         if (key === 'url' && typeof value === 'string' && value.startsWith('data:')) return 'DATA_REDACTED';
         return value;
@@ -312,10 +313,10 @@ class NanoBananaServer {
             const absoluteOutputPath = path.isAbsolute(outputPath) ? outputPath : path.resolve(process.cwd(), outputPath);
             await fs.mkdir(path.dirname(absoluteOutputPath), { recursive: true });
             await fs.writeFile(absoluteOutputPath, firstImage.data, 'base64');
-            console.error(`[Nano Banana Pro] Saved image to ${absoluteOutputPath}`);
+            console.error(`[Nano Banana MCP] Saved image to ${absoluteOutputPath}`);
             mcpContent.push({ type: 'text', text: `Successfully saved the generated image to: ${absoluteOutputPath}` });
           } catch (err: any) {
-            console.error(`[Nano Banana Pro] Failed to save image: ${err.message}`);
+            console.error(`[Nano Banana MCP] Failed to save image: ${err.message}`);
             mcpContent.push({ type: 'text', text: `Warning: Failed to save image to path: ${err.message}` });
           }
         }
@@ -324,13 +325,13 @@ class NanoBananaServer {
       return { content: mcpContent, usage: response.data.usage };
     } catch (error: any) {
       if (axios.isAxiosError(error)) {
-        console.error(`[Nano Banana Pro] Axios Error: ${JSON.stringify(error.response?.data || error.message, null, 2)}`);
+        console.error(`[Nano Banana MCP] Axios Error: ${JSON.stringify(error.response?.data || error.message, null, 2)}`);
         return {
           content: [{ type: 'text', text: `OpenRouter API error: ${JSON.stringify(error.response?.data || error.message)}` }],
           isError: true,
         };
       }
-      console.error(`[Nano Banana Pro] Unexpected Error: ${error.stack || error.message}`);
+      console.error(`[Nano Banana MCP] Unexpected Error: ${error.stack || error.message}`);
       throw error;
     }
   }
@@ -359,7 +360,7 @@ class NanoBananaServer {
 
     // Generate session ID
     const sessionId = `session_${Date.now()}_${Math.random().toString(36).substring(7)}`;
-    console.error(`[Nano Banana Pro] Starting annotation session: ${sessionId}`);
+    console.error(`[Nano Banana MCP] Starting annotation session: ${sessionId}`);
 
     // Load images and convert to base64
     const images: { name: string; path: string; dataUrl: string }[] = [];
@@ -444,11 +445,11 @@ class NanoBananaServer {
         };
         session.status = 'completed';
         
-        console.error(`[Nano Banana Pro] Session ${sessionId} completed with ${annotatedPaths.length} annotated images`);
+        console.error(`[Nano Banana MCP] Session ${sessionId} completed with ${annotatedPaths.length} annotated images`);
         
         res.json({ success: true });
       } catch (err: any) {
-        console.error('[Nano Banana Pro] Error saving annotations:', err);
+        console.error('[Nano Banana MCP] Error saving annotations:', err);
         const session = annotationSessions.get(sessionId);
         if (session) {
           session.status = 'error';
@@ -475,7 +476,7 @@ class NanoBananaServer {
     const httpServer = createServer(app);
     await new Promise<void>((resolve) => {
       httpServer.listen(port, () => {
-        console.error(`[Nano Banana Pro] Annotation server for session ${sessionId} running at http://localhost:${port}`);
+        console.error(`[Nano Banana MCP] Annotation server for session ${sessionId} running at http://localhost:${port}`);
         resolve();
       });
     });
@@ -494,7 +495,7 @@ class NanoBananaServer {
 
     // Open browser with fallback methods
     const url = `http://localhost:${port}`;
-    console.error(`[Nano Banana Pro] Opening browser at ${url}`);
+    console.error(`[Nano Banana MCP] Opening browser at ${url}`);
     
     let browserOpened = false;
     
@@ -503,9 +504,9 @@ class NanoBananaServer {
       const open = (await import('open')).default;
       await open(url);
       browserOpened = true;
-      console.error(`[Nano Banana Pro] Browser opened successfully via 'open' package`);
+      console.error(`[Nano Banana MCP] Browser opened successfully via 'open' package`);
     } catch (openErr: any) {
-      console.error(`[Nano Banana Pro] 'open' package failed: ${openErr.message}`);
+      console.error(`[Nano Banana MCP] 'open' package failed: ${openErr.message}`);
     }
     
     // Method 2: Try xdg-open with spawn (better for detached processes)
@@ -519,9 +520,9 @@ class NanoBananaServer {
         });
         child.unref();
         browserOpened = true;
-        console.error(`[Nano Banana Pro] Browser opened via xdg-open spawn`);
+        console.error(`[Nano Banana MCP] Browser opened via xdg-open spawn`);
       } catch (spawnErr: any) {
-        console.error(`[Nano Banana Pro] xdg-open spawn failed: ${spawnErr.message}`);
+        console.error(`[Nano Banana MCP] xdg-open spawn failed: ${spawnErr.message}`);
       }
     }
 
@@ -536,9 +537,9 @@ class NanoBananaServer {
         });
         child.unref();
         browserOpened = true;
-        console.error(`[Nano Banana Pro] Browser opened via sensible-browser`);
+        console.error(`[Nano Banana MCP] Browser opened via sensible-browser`);
       } catch (sbErr: any) {
-        console.error(`[Nano Banana Pro] sensible-browser failed: ${sbErr.message}`);
+        console.error(`[Nano Banana MCP] sensible-browser failed: ${sbErr.message}`);
       }
     }
 
@@ -556,16 +557,16 @@ class NanoBananaServer {
           });
           child.unref();
           browserOpened = true;
-          console.error(`[Nano Banana Pro] Browser opened via ${browser}`);
+          console.error(`[Nano Banana MCP] Browser opened via ${browser}`);
           break;
         } catch (browserErr: any) {
-          console.error(`[Nano Banana Pro] ${browser} failed: ${browserErr.message}`);
+          console.error(`[Nano Banana MCP] ${browser} failed: ${browserErr.message}`);
         }
       }
     }
 
     if (!browserOpened) {
-      console.error(`[Nano Banana Pro] All browser open methods failed. User must open manually.`);
+      console.error(`[Nano Banana MCP] All browser open methods failed. User must open manually.`);
     }
 
     const browserNote = browserOpened 
@@ -655,7 +656,7 @@ class NanoBananaServer {
     // Close server and clean up session
     session.httpServer.close();
     annotationSessions.delete(sessionId);
-    console.error(`[Nano Banana Pro] Session ${sessionId} closed and cleaned up`);
+    console.error(`[Nano Banana MCP] Session ${sessionId} closed and cleaned up`);
     
     return {
       content: [
@@ -686,7 +687,7 @@ class NanoBananaServer {
   async run() {
     const transport = new StdioServerTransport();
     await this.server.connect(transport);
-    console.error('Nano Banana Pro MCP server running on stdio');
+    console.error('Nano Banana MCP server running on stdio');
   }
 }
 
