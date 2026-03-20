@@ -1,4 +1,4 @@
-# Nano Banana 2 - OpenRouter MCP Server
+# Nano Banana - OpenRouter MCP Server
 
 Fast, cost-efficient image generation and editing for MCP. Powered by Nano Banana 2 via OpenRouter.
 
@@ -6,7 +6,10 @@ Fast, cost-efficient image generation and editing for MCP. Powered by Nano Banan
 
 - **edit_or_create_image**: Create or edit an image using the Nano Banana 2 model on OpenRouter. Fast, cost-efficient results. Supports up to 12 context images. Saves to project folder by default.
 - **batch_edit_or_create_images**: Perform multiple image creation or editing tasks in a single batch. Optimized for Nano Banana 2. Perfect for fast, cost-efficient creative workflows.
-- **annotate_images**: Open a visual annotation UI to draw on images and add notes before editing. Opens a browser window where you can draw freehand markings on each image and write prompts. Useful for pointing out specific areas to edit.
+- **health_check**: Validate `.env` loading, API key presence, selected model, and optionally run a live OpenRouter connectivity test.
+- **start_annotation**: Open a visual annotation UI to draw on images and add notes before editing.
+- **get_annotation_results**: Retrieve completed annotation results after the user clicks Finish.
+- **complete_annotation_edit**: One-step helper that retrieves completed annotations and immediately applies the requested edit.
 - **Multimodal Support**: Provide up to 12 local images as context for editing or inspiration.
 - **Flexible Output**: Specify a local path to save each generated image.
 - **Model Override**: Still supports `NANO_BANANA_MODEL_ID` if you want to point the server at a different OpenRouter image model.
@@ -43,7 +46,7 @@ Add the server to your MCP settings file (e.g., `cline_mcp_settings.json` or `cl
 ```json
 {
   "mcpServers": {
-    "nano-banana-pro": {
+    "nano-banana": {
       "command": "node",
       "args": ["/path/to/nano-banana-openrouter-mcp/build/index.js"],
       "cwd": "/path/to/nano-banana-openrouter-mcp",
@@ -55,7 +58,10 @@ Add the server to your MCP settings file (e.g., `cline_mcp_settings.json` or `cl
       "autoApprove": [
         "edit_or_create_image",
         "batch_edit_or_create_images",
-        "annotate_images"
+        "start_annotation",
+        "get_annotation_results",
+        "complete_annotation_edit",
+        "health_check"
       ]
     }
   }
@@ -95,7 +101,7 @@ This was chosen for better speed/cost tradeoffs. You can still override it with 
 
 ### Image Annotation
 
-Use the `annotate_images` tool to open a browser-based annotation UI where you can draw freehand markings on images and add notes:
+Use the `start_annotation` tool to open a browser-based annotation UI where you can draw freehand markings on images and add notes:
 
 ```json
 {
@@ -115,6 +121,20 @@ The tool returns:
 - `originalImagePaths`: The original input paths
 
 This is particularly useful when you want to point out specific areas in images that need editing, which the AI can then use with `edit_or_create_image`.
+
+### Annotation Shortcut Flow
+
+If the user has already completed the annotation step in the browser, you can call `complete_annotation_edit` to retrieve the saved annotation results and immediately apply the edit in one tool call.
+
+### Health Check
+
+Use `health_check` to verify local configuration and optionally test OpenRouter connectivity:
+
+```json
+{
+  "testApi": true
+}
+```
 
 ## License
 

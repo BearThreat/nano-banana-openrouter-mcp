@@ -14,6 +14,40 @@ import express, { Request, Response } from 'express';
 import { fileURLToPath } from 'url';
 import { createServer } from 'http';
 
+function parseDotEnv(text: string): Record<string, string> {
+  const values: Record<string, string> = {};
+  for (const rawLine of text.split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (!line || line.startsWith('#')) continue;
+    const eqIndex = line.indexOf('=');
+    if (eqIndex === -1) continue;
+    const key = line.slice(0, eqIndex).trim();
+    let value = line.slice(eqIndex + 1).trim();
+    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+      value = value.slice(1, -1);
+    }
+    values[key] = value;
+  }
+  return values;
+}
+
+async function loadLocalEnvFile() {
+  const envPath = path.resolve(process.cwd(), '.env');
+  try {
+    const envText = await fs.readFile(envPath, 'utf8');
+    const parsed = parseDotEnv(envText);
+    for (const [key, value] of Object.entries(parsed)) {
+      if (process.env[key] === undefined) {
+        process.env[key] = value;
+      }
+    }
+  } catch {
+    // Ignore missing .env file.
+  }
+}
+
+await loadLocalEnvFile();
+
 const API_KEY = process.env.OPENROUTER_API_KEY;
 const MODEL_ID = process.env.NANO_BANANA_MODEL_ID || 'google/gemini-3.1-flash-image-preview';
 
@@ -32,6 +66,15 @@ interface AnnotationSession {
   createdAt: Date;
 }
 
+interface ImageTaskResultMeta {
+  model: string;
+  prompt: string;
+  inputImageCount: number;
+  generatedImageCount: number;
+  savedImagePath: string | null;
+  usage: any | null;
+}
+
 const annotationSessions: Map<string, AnnotationSession> = new Map();
 
 class NanoBananaServer {
@@ -41,7 +84,7 @@ class NanoBananaServer {
   constructor() {
     this.server = new Server(
       {
-        name: 'nano-banana-pro',
+        name: 'nano-banana',
         version: '0.1.0',
         description: 'Fast, cost-efficient image generation and editing via Nano Banana 2 on OpenRouter, with support for multimodal prompting and annotation workflows.'
       },
@@ -122,6 +165,21 @@ class NanoBananaServer {
           }
         },
         {
+          name: 'health_check',
+          description: 'Check local configuration and OpenRouter connectivity. Verifies API key presence, active model ID, optional .env loading, and can run a live API ping.',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              testApi: {
+                type: 'boolean',
+                description: 'Whether to run a live OpenRouter API connectivity test.',
+                default: false,
+              }
+            },
+            required: []
+          }
+        },
+        {
           name: 'start_annotation',
           description: `Start an annotation session for visual image editing. Opens a browser window where users can draw circles, arrows, and highlight areas on images, plus add text prompts describing what changes they want.
 
@@ -169,6 +227,25 @@ class NanoBananaServer {
             required: []
           }
         }
+        ,
+        {
+          name: 'complete_annotation_edit',
+          description: 'Complete an annotation workflow in one step. If the annotation session is done, this retrieves the annotated images and immediately applies the edit request with edit_or_create_image.',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              sessionId: {
+                type: 'string',
+                description: 'The session ID returned by start_annotation. If not provided, uses the most recent session.',
+              },
+              outputPath: {
+                type: 'string',
+                description: 'Optional output path for the final edited result.',
+              }
+            },
+            required: []
+          }
+        }
       ],
     }));
 
@@ -194,16 +271,29 @@ class NanoBananaServer {
         }));
 
         return {
-          content: [{ type: 'text', text: JSON.stringify(results, null, 2) }]
+          content: [{ type: 'text', text: JSON.stringify(results, null, 2) }],
+          structuredContent: {
+            model: MODEL_ID,
+            taskCount: tasks.length,
+            results,
+          }
         };
+      } else if (request.params.name === 'health_check') {
+        return this.handleHealthCheck((request.params.arguments as any) || {});
       } else if (request.params.name === 'start_annotation') {
         return this.handleStartAnnotation(request.params.arguments as any);
       } else if (request.params.name === 'get_annotation_results') {
         return this.handleGetAnnotationResults(request.params.arguments as any);
+      } else if (request.params.name === 'complete_annotation_edit') {
+        return this.handleCompleteAnnotationEdit(request.params.arguments as any);
       } else {
         throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${request.params.name}`);
       }
     });
+  }
+
+  private buildUsageSummary(usage: any): string {
+    return `[Usage Summary] Prompt Tokens: ${usage.prompt_tokens}, Completion Tokens: ${usage.completion_tokens}, Total Tokens: ${usage.total_tokens}${usage.cost !== undefined ? `, Cost: ${usage.cost}` : ''}`;
   }
 
   private async handleImageTask(args: { prompt: string; imagePaths?: string[]; outputPath?: string }) {
@@ -257,6 +347,7 @@ class NanoBananaServer {
       
       // Final results to return to MCP
       const mcpContent: any[] = [];
+      let savedImagePath: string | null = null;
       if (resultText && typeof resultText === 'string') {
         mcpContent.push({ type: 'text', text: resultText });
       }
@@ -301,7 +392,7 @@ class NanoBananaServer {
       if (response.data.usage) {
         mcpContent.push({
           type: 'text',
-          text: `[Usage Summary] Prompt Tokens: ${response.data.usage.prompt_tokens}, Completion Tokens: ${response.data.usage.completion_tokens}, Total Tokens: ${response.data.usage.total_tokens}`
+          text: this.buildUsageSummary(response.data.usage)
         });
       }
 
@@ -313,6 +404,7 @@ class NanoBananaServer {
             const absoluteOutputPath = path.isAbsolute(outputPath) ? outputPath : path.resolve(process.cwd(), outputPath);
             await fs.mkdir(path.dirname(absoluteOutputPath), { recursive: true });
             await fs.writeFile(absoluteOutputPath, firstImage.data, 'base64');
+            savedImagePath = absoluteOutputPath;
             console.error(`[Nano Banana MCP] Saved image to ${absoluteOutputPath}`);
             mcpContent.push({ type: 'text', text: `Successfully saved the generated image to: ${absoluteOutputPath}` });
           } catch (err: any) {
@@ -322,7 +414,20 @@ class NanoBananaServer {
         }
       }
 
-      return { content: mcpContent, usage: response.data.usage };
+      const meta: ImageTaskResultMeta = {
+        model: MODEL_ID,
+        prompt,
+        inputImageCount: imagePaths.length,
+        generatedImageCount: mcpContent.filter(c => c.type === 'image').length,
+        savedImagePath,
+        usage: response.data.usage || null,
+      };
+
+      return {
+        content: mcpContent,
+        usage: response.data.usage,
+        structuredContent: meta,
+      };
     } catch (error: any) {
       if (axios.isAxiosError(error)) {
         console.error(`[Nano Banana MCP] Axios Error: ${JSON.stringify(error.response?.data || error.message, null, 2)}`);
@@ -334,6 +439,63 @@ class NanoBananaServer {
       console.error(`[Nano Banana MCP] Unexpected Error: ${error.stack || error.message}`);
       throw error;
     }
+  }
+
+  private async handleHealthCheck(args: { testApi?: boolean }) {
+    const { testApi = false } = args;
+
+    const envPath = path.resolve(process.cwd(), '.env');
+    let envFilePresent = false;
+    try {
+      await fs.access(envPath);
+      envFilePresent = true;
+    } catch {
+      envFilePresent = false;
+    }
+
+    const summary: any = {
+      ok: !!API_KEY,
+      envFilePresent,
+      apiKeyPresent: !!API_KEY,
+      modelId: MODEL_ID,
+      cwd: process.cwd(),
+      apiTest: null as any,
+    };
+
+    if (testApi && API_KEY) {
+      try {
+        const response = await this.axiosInstance.post('/chat/completions', {
+          model: MODEL_ID,
+          modalities: ['image', 'text'],
+          messages: [
+            {
+              role: 'user',
+              content: [{ type: 'text', text: 'Reply with a short confirmation that image generation is available.' }],
+            }
+          ],
+          max_tokens: 20,
+        });
+
+        summary.apiTest = {
+          ok: true,
+          status: response.status,
+          provider: response.data?.provider || null,
+          usage: response.data?.usage || null,
+        };
+      } catch (error: any) {
+        summary.ok = false;
+        summary.apiTest = {
+          ok: false,
+          error: axios.isAxiosError(error) ? (error.response?.data || error.message) : error.message,
+        };
+      }
+    }
+
+    return {
+      content: [{ type: 'text', text: JSON.stringify(summary, null, 2) }],
+      structuredContent: summary,
+      isError: !summary.ok,
+    };
   }
 
   private getMimeType(filePath: string): string {
@@ -681,6 +843,45 @@ class NanoBananaServer {
           }, null, 2)
         }
       ],
+      structuredContent: {
+        annotatedImagePaths: results.annotatedPaths,
+        combinedPrompt: results.combinedPrompt,
+        originalImagePaths: results.originalPaths,
+      }
+    };
+  }
+
+  private async handleCompleteAnnotationEdit(args: { sessionId?: string; outputPath?: string }): Promise<any> {
+    const annotationResult: any = await this.handleGetAnnotationResults({ sessionId: args.sessionId });
+    if (annotationResult.isError) {
+      return annotationResult;
+    }
+
+    const structured = annotationResult.structuredContent;
+    if (!structured?.annotatedImagePaths || !structured?.combinedPrompt) {
+      return {
+        content: [{ type: 'text', text: 'Annotation results are not ready yet. Complete the annotation session and try again.' }],
+        isError: true,
+      };
+    }
+
+    const outputPath = args.outputPath || structured.originalImagePaths?.[0]?.replace(/\.[^.]+$/, '_edited.png') || 'edited_output.png';
+    const imageResult: any = await this.handleImageTask({
+      prompt: structured.combinedPrompt,
+      imagePaths: structured.annotatedImagePaths,
+      outputPath,
+    });
+
+    return {
+      content: [
+        { type: 'text', text: `Completed annotation workflow and applied the requested edit. Final output path: ${imageResult.structuredContent?.savedImagePath || outputPath}` },
+        ...(imageResult.content || []),
+      ],
+      structuredContent: {
+        annotation: structured,
+        imageResult: imageResult.structuredContent || null,
+      },
+      isError: imageResult.isError,
     };
   }
 
